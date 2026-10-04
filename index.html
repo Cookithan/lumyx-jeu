@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/lumyx-jeu/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Lumyx — guide la lueur à travers Nyx.">
+  <!-- Flutter ne la pose pas lui-même quand il dessine dans #lumyx : pas de zoom (le double toucher est l'onde). -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- Les iPhone plus anciens ne lisent que l'ancien nom : plein écran depuis l'écran d'accueil. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Lumyx">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Lumyx</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    /* La page ne bouge jamais : ni défilement, ni rebond, ni sélection, ni loupe. */
+    html, body {
+      margin: 0; height: 100%; background: #000; overflow: hidden;
+      overscroll-behavior: none; touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    }
+    body { position: fixed; inset: 0; }
+    #lumyx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+  </style>
+  <script>
+    // iPhone : sans ça, le bouton silencieux coupe tout le son du jeu (une
+    // appli, elle, joue quand même).
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+
+    // Téléphone à l'écran très dense (iPhone : 3 pixels par point) : le jeu se
+    // dessine avec 2. Plus de deux fois moins de pixels à calculer à chaque
+    // image (le téléphone chauffait), et l'œil ne voit presque pas la différence.
+    (function () {
+      var vrai = window.devicePixelRatio || 1;
+      if (vrai > 2 && matchMedia('(pointer: coarse)').matches) {
+        Object.defineProperty(window, 'devicePixelRatio', { get: function () { return 2; }, configurable: true });
+      }
+    })();
+
+    // Mode « Économie » (Réglages › Batterie) : le jeu met lumyxEconomie à vrai,
+    // et la page ne lui donne qu'une image sur deux (30 par seconde au lieu de 60).
+    (function () {
+      var raf = window.requestAnimationFrame.bind(window);
+      var caf = window.cancelAnimationFrame.bind(window);
+      var vrais = new Map(), suivant = 1, derniere = -1, sauter = false;
+      window.lumyxEconomie = false;
+      window.requestAnimationFrame = function (cb) {
+        var id = suivant++;
+        var tick = function (t) {
+          if (window.lumyxEconomie) {
+            // Toutes les demandes d'une même image décident ensemble.
+            if (t !== derniere) { derniere = t; sauter = !sauter; }
+            if (sauter) { vrais.set(id, raf(tick)); return; }
+          }
+          vrais.delete(id);
+          cb(t);
+        };
+        vrais.set(id, raf(tick));
+        return id;
+      };
+      window.cancelAnimationFrame = function (id) {
+        var v = vrais.get(id);
+        if (v !== undefined) { caf(v); vrais.delete(id); }
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div id="lumyx"></div>
+  <script>
+    // Une page web ne peut pas bloquer la rotation d'un iPhone. Quand un
+    // téléphone passe en paysage, le jeu tourne donc d'un quart de tour dans
+    // l'autre sens : il reste droit par rapport au téléphone, comme une appli
+    // bloquée en portrait. (Un ordinateur ou une tablette, eux, gardent la
+    // page large.)
+    (function () {
+      var jeu = document.getElementById('lumyx');
+      function telephone() {
+        return matchMedia('(pointer: coarse)').matches && Math.min(innerWidth, innerHeight) < 600;
+      }
+      // De combien le téléphone a tourné : 90, le haut à gauche ; 270, le haut à droite.
+      function angle() {
+        var a = typeof window.orientation === 'number' ? window.orientation
+          : (screen.orientation && typeof screen.orientation.angle === 'number' ? screen.orientation.angle : 90);
+        a = ((a % 360) + 360) % 360;
+        return a === 270 ? 270 : 90;
+      }
+      function placer() {
+        var w = innerWidth, h = innerHeight;
+        if (w > h && telephone()) {
+          jeu.style.width = h + 'px';
+          jeu.style.height = w + 'px';
+          jeu.style.transform = angle() === 270
+            ? 'translateX(' + w + 'px) rotate(90deg)'
+            : 'translateY(' + h + 'px) rotate(-90deg)';
+        } else {
+          jeu.style.width = w + 'px';
+          jeu.style.height = h + 'px';
+          jeu.style.transform = 'none';
+        }
+      }
+      placer();
+      addEventListener('resize', placer);
+      addEventListener('orientationchange', placer);
+      if (screen.orientation) screen.orientation.addEventListener('change', placer);
+    })();
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
